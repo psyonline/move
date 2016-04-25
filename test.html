@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1024">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<title> psyonline.move.js library test </title>
+
+<style>
+html, body, p, ul, li {margin: 0; padding: 0;}
+html, body {height: 100%; background: #000;}
+/*#wrap {position: absolute; left: 100px; top: 100px; right: 100px; bottom: 100px; background: #222; -overflow: auto;}*/
+#wrap {position: absolute; left: 50%; top: 50%; width: 500px; height: 500px; margin: -250px 0 0 -250px; background: #222; overflow: hidden;
+	/*transform: scale(0.5, 0.5);*/
+}
+#wrap p {position: absolute; width: 100px; height: 100px; background: #fff; z-index: 1;}
+#wrap p+p {width: 100%; height: auto; opacity: 0.75; z-index: 0;}
+#wrap p img {width: 100%; -height: 100px; display: block;}
+#wrap p.buttons {bottom: 0; width: auto; background: none; opacity: 1;}
+
+#wrap p+p {cursor: move; cursor: -webkit-grab; cursor: -moz-grab; cursor: grab;}
+.grabbing,
+.grabbing #wrap p+p {cursor: move; cursor: -webkit-grabbing; cursor: -moz-grabbing; cursor: grabbing;}
+
+#list {position: absolute; left: 0; top: 0; width: 200px; background: #222;}
+#list li {position: relative; height: 50px; color: #f60; line-height: 50px; border-top: 1px solid #777;}
+#list li div {position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.9);}
+
+.scroll-content {}
+.scroll-content-x {padding-bottom: 15px;}
+.scroll-content-y {padding-right: 15px;}
+.scroll-track {position: absolute; width: 10px; height: 10px; background: #d5d5d5;}
+.scroll-track-x {left: 0; bottom: 0;}
+.scroll-track-y {right: 0; top: 0;}
+.scroll-bar {position: absolute; width: 10px; height: 10px; background: #000;}
+.scroll-bar.active {background: #fff;}
+</style>
+
+<script src="https://code.jquery.com/jquery-2.2.3.min.js"></script>
+<script src="./move.js"></script>
+
+</head>
+
+<body>
+
+<div style="width: 100px; height: 3000px; background: #fff; opacity: 0.2;"><a href="http://manos.malihu.gr/repository/custom-scrollbar/demo/examples/complete_examples.html" target="_blank">dddddd</a> asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf</div>
+
+<div id="wrap">
+	<p onclick="console.log('box clicked!!');">
+		<a href="#" onclick="alert('link clicked!!');return false;" style="position:relative;">LINK</a>
+		<button type="button" onclick="console.log('button clicked!!');" style="width: 50px; height: 25px;">BUTTON</button>
+		<input type="text" onclick="console.log('input clicked');">
+	</p>
+	<p><a href="http://manos.malihu.gr/repository/custom-scrollbar/demo/examples/complete_examples.html" target="_blank">dddddd</a> 
+		<a href="#" onclick="alert('link clicked!!');return false;" style="position:relative;">LINK</a>
+		<button type="button" onclick="console.log('button clicked!!');" style="width: 50px; height: 25px;">BUTTON</button>
+		<input type="text" onclick="console.log('input clicked');"> asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf<img src="./img.jpg" alt=""></p>
+	<p class="buttons">
+		<button type="button">+</button>
+		<button type="button">-</button>
+	</p>
+</div>
+
+<ul id="list">
+</ul>
+
+<script>
+(function() {
+
+	'use strict';
+
+	/*
+		### options
+
+		# 이동 할 때 CSS 클래스명(body에 추가 됨).
+		classongrabbing: string, default: 'grabbing'
+
+		# 방향
+		direction: 'x' | 'y' | 'x,y' | 'auto' | 'free', default: 'auto'
+
+		# CSS Transform 사용 여부
+		usetransform: '3d' | '2d' | false, default: '3d', set false to use 'left, top'
+
+		# 사용하지 않는 방향 또는 경계에서 터치를 막을 것인지 여부
+		preventtouches: boolean, default: true
+
+		# 던지는 효과 사용 여부
+		throwable: boolean, default: true
+
+		# 경계를 벗어날 것인지 여부
+		outofbounds: boolean, default: true
+
+		# 경계 지정
+		bounds: element | array[x, y, width, height], default: null
+
+		# 위치 고정 여부(함수인 경우 값을 전달 받아서 고정할 위치를 return 해야함)
+		snap: number | function(gets destination value, return snaped value)
+			or array[x(number|function), y(number|function)]
+			or {x: number|function, y: number|function},
+			default: null
+
+		# 애니매이션 사용 여부
+		animate: boolean, default: true
+
+		# 최소 애니매이션 시간
+		minduration: number, default: 500
+
+		# 최대 애니매이션 시간
+		maxduration: number, default: 1750
+
+		# 실제 이동 없이 값만 사용할 것인지 여부
+		valuesonly: boolean, default: false
+
+		# 스크롤 모드. 값이 있으면 사용으로 처리
+		scroll: {
+			- 휠을 가로 스크롤로 사용할 것인지 여부
+			wheelforx: boolean, default: false
+			- 사용하지 않는 방향 또는 경계에서 휠을 막을 것인지 여부
+			preventwheels: boolean, default: true
+			- 휠 애니매이션 사용 여부
+			wheelanimate: boolean, default: true
+		}
+
+		# 스케일 기능. 값이 있으면 사용으로 처리
+		scale: {
+			- 첫 표시 스케일
+			initial: number, default: 1
+			- 최소 스케일
+			min: number, default: 1
+			- 최대 스케일
+			max: number, default: 1
+		}
+
+
+
+		### events
+
+		# 공통 event 값
+		event = {
+			"type": "reset | move | moveend",
+			"x": 0~,
+			"y": 0~,
+			"max": {
+				"x": 0~,
+				"y": 0~
+			},
+			"percent": { // now/(max-min)
+				"x": 0~1,
+				"y": 0~1
+			}
+		}
+
+		# .reset() 함수 실행 시 발생
+		onreset: function(event)
+
+		# 움직일 때마다 발생
+		onmove: function(event)
+
+		# 움직임이 끝날 때 발생
+		onmoveend: function(event)
+
+		# 던질 때 발생(공통 event 값에 destination(최종위치) 속성이 추가됨)
+		onthrow: function(event)
+			event = {
+				"type": "throw",
+				...
+				"destination": {
+					"x": 0~,
+					"y": 0~
+				}
+			}
+
+
+		### return
+
+		{
+			# x 이동
+			x: function(x, withoutanimation)
+				- x: 이동할 x 값, number, 값이 없으면 현재 x 값 return
+				- withoutanimation: 애니매이션 사용 여부, boolean, default: true(option의 useanimation이 우선)
+
+			# y 이동
+			y: function(y, withoutanimation)
+				- y: 이동할 y 값, number, 값이 없으면 현재 y 값 return
+				- withoutanimation: 애니매이션 사용 여부, boolean, default: true(option의 useanimation이 우선)
+
+			# x, y 이동
+			to: function(x, y, withoutanimation)
+				- x: 이동할 x 값, number
+				- y: 이동할 y 값, number
+				- withoutanimation: 애니매이션 사용 여부, boolean, default: true(option의 useanimation이 우선)
+
+			# scale 변경
+			scale: function(value, percentx, percenty, withoutanimation)
+				- value: 변경할 scale 값, number, 값이 없으면 현재 scale 값 return
+				- percentx: 확대/축소 후 화면상 중앙에 위치할 x 지점의 현재 화면상 percent, float, 기본값: 0.5
+				- percenty: 확대/축소 후 화면상 중앙에 위치할 y 지점의 현재 화면상 percent, float, 기본값: 0.5
+				- withoutanimation: 애니매이션 사용 여부, boolean, default: true(option의 useanimation이 우선)
+
+			# scroll 기능 활성
+			enable: function()
+
+			# scroll 기능 비활성
+			disable: function()
+
+			# reset, 사이즈 변경 등 지정 후 실행.
+			reset: function()
+
+			# ??
+			set: function(target)
+		}
+
+
+		### _move 유틸함수
+
+		# object 속성 값 애니매이션. 실제 값을 지정하지는 않음.
+		.animator: {
+			set: ...
+			stop: ...
+			easings: ...
+		}
+	*/
+
+	$(window).load(function() {
+		$('#wrap p').eq(0)._move({
+			bounds: [100, 100, 500, 500],
+			// throwable: false,
+			// outofbounds: false,
+			// animate: false,
+			snap: 100,
+			// direction: 'free',
+			// direction: 'auto'
+			onmove: function(e) {
+				// console.log('move', JSON.stringify(e));
+			},
+			onmoveend: function(e) {
+				// console.log('moveend', JSON.stringify(e));
+			},
+			onthrow: function(e) {
+				// console.log('throw', JSON.stringify(e));
+			}
+		});
+		var secondscroll = $('#wrap p').eq(1)._move({
+			classnames: {
+				hover: 'grab',
+				grabbing: 'grabbing'
+			},
+			bounds: null,
+			// animate: false,
+			// direction: 'free',
+			scalable: 2,
+			// minduration: 300,
+			// maxduration: 1000,
+			// throwable: false,
+			// outofbounds: false,
+			preventtouches: false,
+			onmove: function(e) {
+				// console.log('move', JSON.stringify(e));
+			},
+			onmoveend: function(e) {
+				// console.log('moveend', JSON.stringify(e));
+			},
+			onthrow: function(e) {
+				// console.log('throw', JSON.stringify(e));
+			},
+			// snap: 100,
+			scroll: {
+				// wheelforx: true,
+				// wheelanimate: false
+				preventwheels: false
+			},
+			scale: {
+				min: 1,
+				max: 5,
+				initial: 1
+			}
+		}).data('_move');
+
+		$('#wrap p.buttons button').click(function() {
+			if (this.innerHTML == '+') {
+				secondscroll.scale(secondscroll.scale()+1);
+			} else {
+				secondscroll.scale(secondscroll.scale()-1);
+			}
+		})
+	});
+
+	var $list = $('#list');
+	$.each(new Array(7), function() {
+		return;
+
+		var $listitem = $([
+				'<li>',
+					'asdfasdfasdfasdfasdfasdf',
+					'<div></div>',
+				'</li>'
+			].join('')).appendTo($list);
+
+		var mover = $listitem.find('div')._move({
+			direction: 'x',
+			preventtouches: false,
+			snap: 100,
+			bounds: [-100, 0, 200, 0]
+		}).data('_move');
+
+		mover.left(0, true);
+
+	});
+
+})();
+</script>
+
+</body>
+</html>
