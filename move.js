@@ -12,7 +12,7 @@
 		isoldie = (/msie/i).test(navigator.userAgent), // ie < 11
 		poorbrowser = (/msie [5-8]/i).test(navigator.userAgent),
 
-		$documente = document.documentElement,
+		$html = document.documentElement,
 		$body = null,
 
 		items = [],
@@ -23,15 +23,17 @@
 		checkfunctionnames = '',
 		functions,
 
-		indexdataname = 'data-dragable-index',
+		indexdataname = 'data-movejs-index',
 
 		currentmoveproperty = '',
 
 		supportonwheelevent = 'onwheel' in document || (isoldie && !poorbrowser),
 
 		regblanks = /(	| )+/g,
+		regcommas = /,/g,
 		regisx = /^(x|f)/,
 		regisy = /^(y|f)/,
+		regtrim = /(^ +| +$)/g,
 
 		pointerenabled = window.navigator.pointerEnabled || window.navigator.msPointerEnabled || false,
 
@@ -45,10 +47,16 @@
 			normal: {easing: 'easeOutCubic', onupdate: onanimate, onend: onanimated},
 			wheel: {easing: 'easeOutQuart', onupdate: onbackanimate, onend: onanimated},
 			back: {easing: 'easeOutCubic', onupdate: onbackanimate, onend: onbackanimated},
-			zoom: {duration: 600, easing: 'easeInOutCirc', onupdate: onzoomanimate, onend: onanimated}
+			zoom: {duration: 450, easing: 'easeInOutQuad', onupdate: onbackanimate, onend: onbackanimated},
+			zoomback: {duration: 250, easing: 'easeOutCubic', onupdate: onbackanimate, onend: onbackanimated}
 		},
 
 		minmovesize = 2,
+
+		scrollleft = 0,
+		scrolltop = 0,
+
+		isscaling = false,
 
 		prevbodycsstext,
 		prevbodyonselectstart;
@@ -56,53 +64,48 @@
 
 	window._move = initialize;
 
-	if (window.$) {
-		$.fn._move = function(_option) {
+	if (window.jQuery) {
+		jQuery.fn._move = function(_option) {
 			if (!_option || $.isPlainObject(_option)) {
 				this.each(function() {
-					$(this).data('_move', initialize(this, _option));
+					jQuery(this).data('_move', initialize(this, _option));
 				});
-			// } else if ( typeof(_option) == 'string' && checkfunctionnames.test(_option) ) {
-			// 	this.each(function() {
-			// 		functions[_option].call(this);
-			// 		if ( _option != 'reset' ) {
-			// 			functions.reset.call(this);
-			// 		}
-			// 	});
 			}
 			return this;
 		}
 	}
 
-	/*
-		$(window).resize(function() {
-			$.each(items, reset);
-		});
-	*/
+	window.addEventListener('scroll', function(e) {
+		scrollleft = window.scrollX || $html.scrollLeft || $body.scrollLeft;
+		scrolltop = window.scrollY || $html.scrollTop || $body.scrollTop;
+	});
 
-	function initialize(target, _option) {
+
+	function initialize(target, option) {
 
 		var index = items.length,
-			item, mover, touchaction;
+			// _option = $.extend(true, {}, _option);
+			_option = option || {},
+			item, control, touchaction;
 
 
-		// _option = $.extend(true, {}, _option);
-		_option = _option || {};
-
-		_option.direction = (_option.direction || 'auto').replace(regblanks, '');
+		_option.direction = (_option.direction || 'auto').replace(regblanks, '').replace(regcommas, '');
 		_option.animate = _option.animate === false ? false : true;
 		_option.throwable = _option.throwable === false ? false : true;
 		_option.outofbounds = _option.outofbounds === false ? false : true;
 		_option.preventtouches = _option.preventtouches === false ? false : true;
 
 		item = {
-			a: true, // enabled
+			a: true, // activated
+			b: null, // bounds
 			c: _option.classongrabbing === undefined ? 'grabbing' : _option.classongrabbing,
 			d: false, // swipe direction
 			e: { // each event handlers for handle event from document element
-				m: createeventhandler('move', target, index),
-				u: createeventhandler('up', target, index),
-				s: createeventhandler('snapafterwheel', target, index)
+				m: createeventhandler(move, target, index),
+				u: createeventhandler(up, target, index),
+				s: createeventhandler(snapafterwheel, target, index),
+				p: createeventhandler(pinchchange, target, index),
+				e: createeventhandler(pinchend, target, index)
 			},
 			h: target.offsetHeight,
 			i: index,
@@ -129,7 +132,8 @@
 			_y: 0, // destination y
 			z: 1, // current scale
 			_z: 1, // destination scale
-			z_: null // scale mode options
+			z_: null, // scale mode options
+			_: null // bar
 		};
 
 		item.$t.setAttribute(indexdataname, index);
@@ -161,18 +165,33 @@
 			item.s.wheelanimate = item.s.wheelanimate === false ? false : true;
 			item.s.preventwheels = item.s.preventwheels === false ? false : true;
 			item.s.usewheel !== false && addevent(item.$t, supportonwheelevent ? {'wheel': wheel} : {'mousewheel DOMMouseScroll': wheel});
+			if (item.s.bar !== false) {
+				// item._ = _move._bar(item, item.s.bar, globals);
+				item._ = bar(item, item.s.bar);
+			}
+			delete item.s.usewheel;
+			delete item.s.bar;
 		}
 
-		if (_option.scale) {
-			item.z_ = typeof(_option.scale) == 'object' ? _option.scale : {};
-			item.z_.min = item.z_.min || item.z_.min === 0 ? item.z_.min : 1;
-			item.z_.max = item.z_.max || 1;
-			item.z = Math.max(item.z_.min, Math.min(item.z_.max, item.z_.initial || 1));
+		item.z_ = typeof(_option.scale) == 'object' ? _option.scale : {};
+		item.z_.min = item.z_.min || item.z_.min === 0 ? item.z_.min : 1;
+		item.z_.max = item.z_.max || 1;
+		item.z = item._z = Math.max(item.z_.min, Math.min(item.z_.max, item.z_.initial || 1));
+		item.z_.dbl = item.z_.dblclick !== false;
+		if (item.z != item.z_.min || item.z != item.z_.max) {
+			addevent(item.$t, {
+				'dblclick': item.z_.dblclick !== false ? zoom : null,
+				'gesturestart': item.z_.pinch !== false ? pinchstart : null
+			});
 			delete item.z_.initial;
+			delete item.z_.dblclick;
+			delete item.z_.pinch;
+		} else {
+			delete item.z_;
 		}
 
 		if (_option.snap) {
-			item.e.s = createeventhandler('snapafterwheel', target, index);
+			item.e.s = createeventhandler(snapafterwheel, target, index);
 			item.e.t = null; // snap timer
 		}
 
@@ -191,7 +210,7 @@
 
 		items[index] = item;
 
-		mover = controller.set({index: index});
+		item.f = control = controller.set({index: index});
 
 		if (!$body) {
 			$body = document.body;
@@ -199,9 +218,9 @@
 
 		reset(index, true);
 
-		return mover;
+		return control;
 
-	}
+	};
 
 	var controller = {
 
@@ -242,6 +261,7 @@
 			reset(this.index);
 		},
 
+		// set controls to item. won't return.
 		set: function(target) {
 			var key;
 			for (key in this) {
@@ -249,6 +269,8 @@
 					target[key] = this[key];
 				}
 			}
+			target.x = target.left;
+			target.y = target.top;
 			return target;
 		}
 
@@ -266,7 +288,7 @@
 		
 		setposition(item, x, y);
 
-		fireevent(item, 'reset', x, y);
+		// fireevent(item, 'reset', x, y); // must fire with set bounds
 
 	}
 
@@ -322,7 +344,9 @@
 		bounds[5] = boundheight;
 		item.b = bounds.slice();
 
-		// displaybounds(index, bounds, item.$t.parentNode); // test
+		// displaybounds(item.index, bounds, item.$t.parentNode); // test
+
+		fireevent(item, 'reset', x, y);
 
 	}
 
@@ -341,15 +365,21 @@
 
 			stopanimation(index);
 
+			if (item.z != item._z) {
+				item._z = item.z;
+				setbounds(item);
+			}
+
 			setposition(item, getedgex(item, true), getedgey(item, true));
 
+			item.d = false;
 			item.p.d = getpoint(e);
 			item.p.m = item.p.l = item.p.d.slice();
 			item.p.p = [item.x, item.y];
 
 			item.m = 'd';
 
-			addevent($documente, {
+			addevent($html, {
 				'mousemove touchmove': item.e.m,
 				'mouseup touchend': item.e.u
 			});
@@ -360,7 +390,7 @@
 
 			disablebodyselect();
 
-			// e.preventDefault(); // this function blocks click in touch based device
+			// preventdefault(e); // this function blocks click in touch based device
 
 		}
 
@@ -399,18 +429,23 @@
 			// 90   90
 			//  \180/
 			degree = Math.abs((Math.atan2(points.d[0]-points.m[0], points.d[1]-points.m[1])*180)/Math.PI);
-			if (!item.o.preventtouches) {
-				if ((item.d == 'x' && (45 > degree || degree > 135)) ||
-					(item.d == 'y' && (degree > 45 && 135 > degree))) {
+			if (item.d == 'auto') {
+				item.d = 121 > degree && degree > 59 ? 'x' : 31 > degree || degree > 149 ? 'y' : 'free';
+			} else if (item.d == 'xy') {
+				item.d = degree > 45 && 135 > degree ? 'x' : 'y';
+			}
+			if (!item.o.preventtouches && !isscaling && istouch(e)) {
+				if (
+					// opposite direction
+					(item.d == 'x' && (45 > degree || degree > 135)) || 
+					(item.d == 'y' && (degree > 45 && 135 > degree)) ||
+					// same direction
+					(item.d == 'x' && ((item.x == bounds[2] && points.m[0] > points.l[0]) || (item.x == bounds[0] && points.l[0] > points.m[0]))) ||
+					(item.d == 'y' && ((item.y == bounds[3] && points.m[1] > points.l[1]) || (item.y == bounds[1] && points.l[1] > points.m[1])))
+				) {
 					removeeventsformove(item);
 					return true;
 				}
-			}
-			if (item.d == 'x,y') {
-				item.d = degree > 45 && 135 > degree ? 'x' : 'y';
-			}
-			if (item.d == 'auto') {
-				item.d = 121 > degree && degree > 59 ? 'x' : 31 > degree || degree > 149 ? 'y' : 'free';
 			}
 		}
 
@@ -427,18 +462,18 @@
 			}
 		}
 
-		setposition(item, x, y);
+		!isscaling && setposition(item, x, y);
 
 		item.l = gettime();
 		points.c++;
 
-		if (!blockeradded && e.type != 'touchmove' &&
+		if (!blockeradded && !istouch(e) &&
 			Math.max(Math.abs(points.d[0]-points.m[0]), Math.abs(points.d[1]-points.m[1])) > minmovesize) {
 			$body.appendChild($blocker);
 			blockeradded = true;
 		}
 
-		e.preventDefault();
+		preventdefault(e);
 
 	}
 
@@ -449,7 +484,7 @@
 			lastpoint = points.k || points.l,
 			movedx = points.m[0]-points.l[0],
 			movedy = points.m[1]-points.l[1],
-			x, y;
+			x, y, time;
 
 		if (item.o.throwable && (!item.q || 
 				((item.q == 1 || item.q == 3) && 0 > movedx) ||
@@ -464,14 +499,23 @@
 				y = item.y+(points.m[1]-lastpoint[1])*20;
 			}
 			movebox(index, x, y);
-		} else if (item.q) {
+		} else if (item.q) { // return to bounds
 			item.r = 1;
 			onanimated.call(items[index]);
-		} else {
+		} else if (movedx || movedy) { // snap and position rounding
 			movebox(index, x, y, 'back');
 		}
 
-		item.d = false;
+		// check double tab for zoom
+		if (item.z_ && item.z_.dbl && istouch(e) &&
+			minmovesize > Math.max(Math.abs(movedx), Math.abs(movedy))) {
+			time = new Date().getTime();
+			if (item.z_.l && 500 > time-item.z_.l) {
+				zoom.call(item.$t, e);
+			}
+			item.z_.l = time;
+		}
+
 		item.p.c = 0;
 		item.p.k = null;
 
@@ -486,7 +530,9 @@
 			$body.className = $body.className.replace(item.c, '');
 		}
 
-		// e.preventDefault();
+		isscaling = false;
+
+		// preventdefault(e);
 
 	}
 
@@ -521,7 +567,7 @@
 		}
 
 		if (item.s.wheelanimate && 2 > Math.max(Math.abs(deltax), Math.abs(deltay))) {
-			e.preventDefault();
+			preventdefault(e);
 			return false;
 		}
 
@@ -555,12 +601,12 @@
 			item.e.t = setTimeout(item.e.s, 75);
 		}
 
-		e.preventDefault();
+		preventdefault(e);
 
 	}
 
 	function removeeventsformove(item) {
-		removeevent($documente, {
+		removeevent($html, {
 			'mousemove touchmove': item.e.m,
 			'mouseup touchend': item.e.u
 		});
@@ -570,7 +616,7 @@
 	function movebox(index, x, y, moveoptionkey, withoutsnap, withoutanimation) {
 
 		var item = items[index],
-			iszoomming = moveoptionkey == 'zoom',
+			iszoomming = moveoptionkey && moveoptionkey.indexOf('zoom') != -1,
 			withoutanimation, movegap;
 
 		if (!withoutsnap) {
@@ -584,7 +630,7 @@
 
 		movegap = Math.max(Math.abs(x-item.x), Math.abs(y-item.y));
 
-		stopanimation(index);
+		!isscaling && movegap && stopanimation(index);
 		item.r = 0;
 
 		if (!item.o.animate || withoutanimation === true || (!iszoomming && item.x == x && item.y == y)) {
@@ -595,7 +641,7 @@
 			fireevent(item, 'moveend', x, y);
 		} else if (iszoomming) {
 			animator.set(item, {x: x, y: y, z: item._z}, moveoption[moveoptionkey]);
-		} else {
+		} else if (!isscaling) {
 			if (!moveoptionkey) {
 				moveoptionkey = movegap ? 'normal' : 'back';
 			}
@@ -610,29 +656,104 @@
 						moveoptionkey == 'back' ? 0 : movegap*5)
 					);
 			}
-			animator.set(item, {x: x, y: y}, moveoption[moveoptionkey]);
+			animator.set(item, {x: x, y: y, z: item._z}, moveoption[moveoptionkey]);
 		}
 
 	}
 
-	function setscale(index, _scale, percentx, percenty, withoutanimation) {
+	function setscale(index, _scale, percentx, percenty, withoutanimation, fromgesture) {
 
 		var item = items[index],
 			bounds = item.b,
-			scale = Math.min(item.z_.max, Math.max(item.z_.min, _scale)),
-			relatedscale = scale/item._z;
+			scale = _scale,
+			relatedscale;
 
-		if (scale == item.z) {
-			return false;
+		if (fromgesture) {
+
+			relatedscale = scale/item.z_.s;
+			item.z = item._z = scale;
+			setbounds(item);
+
+			setposition(item,
+				(item.z_.p[0]-item.z_.rs[0]*bounds[4])*relatedscale + bounds[4]*percentx,
+				(item.z_.p[1]-item.z_.rs[1]*bounds[5])*relatedscale + bounds[5]*percenty);
+
+		} else {
+
+			scale = Math.min(item.z_.max, Math.max(item.z_.min, scale));
+
+			if (scale != item.z) {
+
+				relatedscale = scale/item._z;
+
+				item._z = scale;
+				setbounds(item);
+
+				movebox(index,
+					(item.x-(percentx || percentx === 0 ? percentx : 0.5)*bounds[4])*relatedscale + bounds[4]*0.5,
+					(item.y-(percenty || percenty === 0 ? percenty : 0.5)*bounds[5])*relatedscale + bounds[5]*0.5,
+					item.z > item.z_.max || item.z_.min > item.z ? 'zoomback' : 'zoom', false, withoutanimation);
+
+			} else {
+				isscaling = false;
+				onanimated.call(item);
+			}
+
 		}
 
-		item._z = scale;
-		setbounds(item);
+	}
 
-		movebox(index,
-				(item.x-(percentx || percentx === 0 ? percentx : 0.5)*bounds[4])*relatedscale + bounds[4]/2,
-				(item.y-(percenty || percenty === 0 ? percenty : 0.5)*bounds[5])*relatedscale + bounds[5]/2,
-			'zoom', false, withoutanimation);
+	function zoom(e) {
+		var item = items[getindex(this)], pointrates = getpointratebyparent(item, getpoint(e));
+		setscale(item.i, item.z > item.z_.min ? item.z_.min : item.z_.max, pointrates[0], pointrates[1]);
+		preventdefault(e);
+	}
+
+	function pinchstart(e) {
+
+		var index = getindex(this),
+			item = items[index];
+
+		isscaling = true;
+
+		item.z_.s = item.z;
+		item.z_.p = [item.x, item.y];
+		item.z_.rs = getpointratebyparent(item, getpoint(e));
+
+		addevent($html, {
+			'gesturechange': item.e.p,
+			'gestureend': item.e.e
+		});
+
+	}
+
+	function pinchchange(index, e) {
+
+		var item = items[index],
+			scale = item.z_.s*e.scale,
+			pointrates = getpointratebyparent(item, getpoint(e));
+
+		if (item.z_.min > scale) {
+			scale = item.z_.min+(scale-item.z_.min)/2;
+		} else if (scale > item.z_.max) {
+			scale = item.z_.max+(scale-item.z_.max)/2;
+		}
+
+		setscale(item.i, scale, pointrates[0], pointrates[1], 0, true);
+
+	}
+
+	function pinchend(index, e) {
+
+		var item = items[index],
+			pointrates = getpointratebyparent(item, getpoint(e));
+
+		setscale(index, item.z);
+
+		removeevent($html, {
+			'gesturechange': item.e.p,
+			'gestureend': item.e.e
+		});
 
 	}
 
@@ -709,6 +830,7 @@
 				type: type,
 				x: item.b[0] == -Infinity ? -x : x-item.b[0],
 				y: item.b[1] == -Infinity ? -y : y-item.b[1],
+				scale: item.z,
 				max: {x: item.b[2]-item.b[0], y: item.b[3]-item.b[1]}
 			};
 
@@ -754,13 +876,15 @@
 	}
 
 	function onbackanimate(e) {
+		if (e.z) {
+			this.z = e.z;
+		}
 		setposition(this, e.x, e.y, 'b');
 	}
 
-	function onzoomanimate(e) {
-		this.z = e.z;
-		setposition(this, e.x, e.y, 'b');
-	}
+	// function onzoomanimate(e) {
+	// 	setposition(this, e.x, e.y, 'b');
+	// }
 
 	function onbackanimated(e) {
 		this.q = false;
@@ -832,17 +956,10 @@
 		movebox(index, items[index]._x, items[index]._y, 'wheel');
 	}
 
-	function createeventhandler(type, target, index) {
-		return type == 'move' ? function(e) {
-				move.call(target, index, e);
-			}
-			: type == 'up' ? function(e) {
-				up.call(target, index, e);
-			}
-			: type == 'snapafterwheel' ? function() {
-				snapafterwheel.call(target, index);
-			}
-			: null
+	function createeventhandler(_function, target, index) {
+		return function(e) {
+			_function.call(target, index, e);
+		}
 	}
 
 	function getcssproperty(item, x, y) {
@@ -856,7 +973,7 @@
 	function displaybounds(index, bounds, parent) {
 		var classname = 'dragable-bounds-indicator-'+ index;
 		if (!isoldie) {
-			removeme.call(document.querySelector('.'+ classname));
+			// removeme.call(document.querySelector('.'+ classname));
 			create('<div class="'+ classname +'" style="position: absolute; left: '+ bounds[0] +'px; top: '+ bounds[1] +'px; width: '+ (bounds[2]-bounds[0]) +'px; height: '+ (bounds[3]-bounds[1]) +'px; border: 1px solid #000; box-sizing: border-box; background: rgba(255, 255, 255, 0.1); z-index: 999; pointer-events: none;" />', parent);
 		}
 	}
@@ -898,6 +1015,29 @@
 		return window.getComputedStyle(target, null)[property];
 	}
 
+
+	function setclass(flag, target, name) {
+		var base;
+		if (target.classList) {
+			target.classList[flag](name);
+		} else {
+			base = (' '+ target.className +' ').replace(new RegExp(' '+ name +' ', 'g'), ' ');
+			target.className = trim(((flag == 'add')? base +' '+ name : base).replace(/ +/g, ' '));
+		}
+	}
+
+	function addclass(target) {
+		for (var i = 1; i < arguments.length; i++) {
+			setclass('add', target, arguments[i]);
+		}
+	}
+
+	function removeclass(target) {
+		for (var i = 1; i < arguments.length; i++) {
+			setclass('remove', target, arguments[i]);
+		}
+	}
+
 	function setevent(flag, target, pairs) {
 		for (var type in pairs) {
 			type.split(' ').map(function(current) {
@@ -916,13 +1056,27 @@
 
 	function getpoint(e) {
 		if (e.touches) {
-			e = e.touches[0];
+			e = e.touches[0] || e.changedTouches[0];
 		}
-		return [e.pageX || e.clientX, e.pageY || e.clientY];
+		return [e.clientX || e.pageX-scrollleft, e.clientY || e.pageY-scrolltop];
+	}
+
+	function getpointratebyparent(item, points) {
+		var parent = item.$b || item.$t.parentNode,
+			parentposition = parent.getBoundingClientRect();
+		return [(points[0]-parentposition.left)/parent.offsetWidth, (points[1]-parentposition.top)/parent.offsetHeight];
+	}
+
+	function istouch(e) {
+		return e.type.indexOf('touch') != -1;
 	}
 
 	function gettime() {
 		return new Date().getTime();
+	}
+
+	function trim(text) {
+		return text.replace(regtrimspace, '');
 	}
 
 	function preventdefault(e) {
@@ -932,6 +1086,261 @@
 	function returnfalse() {
 		return false;
 	}
+
+
+	// bar
+	var bar = (function() {
+
+		var bars = [],
+
+			directiondataname = 'data-movejs-direction',
+
+			downbar = null,
+			downdirection = '',
+			downdirectionindex = -1,
+			downposition,
+
+			sizeflags = {x: 'width', y: 'height'},
+			offsetsizeflags = {x: 'offsetWidth', y: 'offsetHeight'},
+
+			_classnames = {
+				x: 'x',
+				y: 'y',
+				track: 'scroll-track',
+				bar: 'bar',
+				display: 'display', // when bar need to displayed
+				hover: 'hover', // mouse over on content box(movers parent)
+				active: 'active' // on drag, on bar move
+			},
+
+			minsize = 10;
+
+
+		function createbar(item, option) {
+
+			var _option = option || {},
+				bar = {
+					a: false, // active
+					c: _option.classnames || {}, // classnames
+					g: false, // moving
+					i: item.i,
+					item: item,
+					x: {
+						a: 0, // moveable size
+						$b: null, // bar element
+						c: 0, // current position
+						m: false, // size modified
+						max: 0, // move target max moveable size
+						s: 0, // size
+						$t: null // track element
+					}, // x bar
+					y: {} // y bar, same with x bar
+				},
+				key;
+
+
+			for (key in _classnames) {
+				bar.c[key] = bar.c[key] || _classnames[key];
+			}
+
+			createelements(bar, 'x', bar.c);
+			createelements(bar, 'y', bar.c);
+
+			addevent(item.$t.parentNode, {
+				'mouseenter': createeventhandler(mouseenter, bar, item.i),
+				'mouseleave': createeventhandler(mouseleave, bar, item.i)
+			});
+			overrideeventhandler(item, 'reset', createeventhandler(onreset, bar, item.i));
+			overrideeventhandler(item, 'move', createeventhandler(onmove, bar, item.i));
+			overrideeventhandler(item, 'moveend', createeventhandler(onmoveend, bar, item.i));
+
+			bars[item.i] = bar;
+
+			return bar;
+
+		}
+
+		function bardown(e) {
+
+			if (2 > e.which) {
+
+				downbar = bars[getindex(this)];
+				downdirection = this.getAttribute(directiondataname);
+				downdirectionindex = downdirection == 'x' ? 0 : 1;
+
+				if (!downbar[downdirection].a) {
+					return true;
+				}
+
+				downposition = getpoint(e);
+				downposition[2] = downbar[downdirection].c;
+
+				addevent($html, {
+					'mousemove touchmove': barmove,
+					'mouseup touchend': barup
+				});
+
+				preventdefault(e);
+
+			}
+
+		}
+
+		function barmove(e) {
+			var currentposition = getpoint(e),
+				to = downposition[2]+currentposition[downdirectionindex]-downposition[downdirectionindex];
+			to = Math.max(0, Math.min(downbar[downdirection].a, to));
+			downbar.item.f[downdirection](downbar[downdirection].max * to/downbar[downdirection].a, true);
+			preventdefault(e);
+		}
+
+		function barup(e) {
+			unsetactive(downbar);
+			downbar = null;
+			removeevent($html, {
+				'mousemove touchmove': barmove,
+				'mouseup touchend': barup
+			});
+		}
+
+		function mouseenter() {
+			addclass(this.x.$t, this.c.hover);
+			addclass(this.y.$t, this.c.hover);
+		}
+
+		function mouseleave() {
+			removeclass(this.x.$t, this.c.hover);
+			removeclass(this.y.$t, this.c.hover);
+		}
+
+		function onreset(index, e, a) {
+			var bar = bars[index], bounds = bar.item.b;
+			bar.x.max = e.max.x;
+			bar.y.max = e.max.y;
+			setsize(bar, 'x', bar.x.max, bounds[4]);
+			setsize(bar, 'y', bar.y.max, bounds[5]);
+		}
+
+		function onmove(index, e) {
+			setposition(this, 'x', e.x/this.x.max);
+			setposition(this, 'y', e.y/this.y.max);
+		}
+
+		function onmoveend(index, e) {
+			setposition(this, 'x', e.x/this.x.max, true);
+			setposition(this, 'y', e.y/this.y.max, true);
+		}
+
+		function setactive(bar) {
+			if (!bar.g) {
+				addclass(bar.x.$t, bar.c.active);
+				addclass(bar.y.$t, bar.c.active);
+				bar.g = true;
+			}
+		}
+
+		function unsetactive(bar) {
+			if (bar.g) {
+				removeclass(bar.x.$t, bar.c.active);
+				removeclass(bar.y.$t, bar.c.active);
+				bar.g = false;
+			}
+		}
+
+		function setposition(bar, flag, percent, isend) {
+
+			var currentbar = bar[flag],
+				$bar = currentbar.$b,
+				property = bar.item.u,
+				x = flag == 'x' && percent ? currentbar.a*percent : 0,
+				y = flag == 'y' && percent ? currentbar.a*percent : 0,
+				value = x || y, // assign value before set min/max position
+				barsize, transform;
+
+			if (isend) {
+				x = Math.round(x);
+				y = Math.round(y);
+				!downbar && unsetactive(bar); // moved from mover. not bar
+			} else {
+				setactive(bar);
+			}
+
+			x = Math.max(0, Math.min(currentbar.a, x));
+			y = Math.max(0, Math.min(currentbar.a, y));
+			currentbar.c = x || y;
+
+			// set bar size
+			if (0 > value) {
+				barsize = currentbar.s+value;
+			} else if (value > currentbar.a) {
+				barsize = Math.ceil(currentbar.s-(value-currentbar.a));
+				value = currentbar.a+currentbar.s-barsize; // fix to end point
+				x = !x ? x : value;
+				y = !y ? y : value;
+			}
+			if (barsize !== undefined) {
+				currentbar.$b.style[sizeflags[flag]] = (barsize || currentbar.s) +'px';
+				currentbar.m = true;
+			} else if (currentbar.m) {
+				currentbar.$b.style[sizeflags[flag]] = currentbar.s +'px';
+			}
+
+			if (property != 'left-top') {
+				if (property == 'x-y') {
+					transform = 'translate3d('+ x +'px, '+ y +'px, 0)';
+				} else { // x-y-2d
+					transform = 'translate('+ x +'px, '+ y +'px)';
+				}
+				$bar.style[transformname] = transform;
+			} else {
+				$bar.style.left = x +'px';
+				$bar.style.top = y +'px';
+			}
+
+		}
+
+		function setsize(bar, flag, moveablesize, boundsize) {
+
+			var currentbar = bar[flag],
+				tracklength = currentbar.$t[offsetsizeflags[flag]];
+
+			currentbar.c = currentbar.c || 0;
+			currentbar.s = Math.round(tracklength*moveablesize/(moveablesize+boundsize));
+			if (currentbar.s) {
+				currentbar.s = Math.max(minsize, tracklength-currentbar.s);
+				currentbar.a = tracklength-currentbar.s;
+				currentbar.$b.style[sizeflags[flag]] = currentbar.s +'px';
+				addclass(currentbar.$t, bar.c.display);
+			} else {
+				currentbar.a = 0;
+				currentbar.$b.style[sizeflags[flag]] = tracklength +'px';
+				removeclass(currentbar.$t, bar.c.display);
+			}
+
+		}
+
+		function createelements(bar, flag, classnames) {
+			var currentbar = bar[flag];
+			currentbar.$t = document.createElement('div');
+			currentbar.$t.className = classnames.track +' '+ classnames[flag];
+			currentbar.$t.setAttribute(indexdataname, bar.i);
+			currentbar.$t.innerHTML = '<div class="'+ classnames.bar +'" '+ indexdataname +'="'+ bar.i +'" '+ directiondataname +'="'+ flag +'"></div>';
+			currentbar.$b = currentbar.$t.children[0];
+			addevent(currentbar.$b, {'mousedown touchstart': bardown});
+			bar.item.$t.parentNode.appendChild(currentbar.$t);
+		}
+
+		function overrideeventhandler(item, flag, beforecall) {
+			var presetted = item.o['on'+ flag];
+			item.o['on'+ flag] = function(e) {
+				beforecall(e);
+				presetted && presetted.call(item.$t, e);
+			}
+		}
+
+		return createbar;
+
+	})();
 
 
 	// support tests for animate
@@ -1008,7 +1417,7 @@
 			easings = {
 				easeOutCubic: function(t,b,c,d) {return c*((t=t/d-1)*t*t+1)+b;},
 				easeOutQuart: function(t,b,c,d) {return -c*((t=t/d-1)*t*t*t-1)+b;},
-				easeInOutCirc: function(t,b,c,d){if((t/=d/2)<1)return -c/2*(Math.sqrt(1-t*t)-1)+b;return c/2*(Math.sqrt(1-(t-=2)*t)+1)+b;}
+				easeInOutQuad: function(t,b,c,d) {if((t/=d/2)<1)return c/2*t*t+b;return -c/2*((--t)*(t-2)-1)+b;}
 			};
 
 
@@ -1052,7 +1461,7 @@
 
 		function stop(target) {
 			var i = 0, max = tweens.length,
-				tween;
+				tween, key;
 			for (; i < max; i++) {
 				tween = tweens[i];
 				if (tween && tween.tg == target) {
@@ -1121,6 +1530,29 @@
 	})();
 
 	initialize.animator = animator;
+
+
+	window.trace = (function() {
+
+		var box, values, i;
+
+		return function() {
+
+			if (!box) {
+				box = document.createElement('div');
+				box.style.cssText = 'position: fixed; left: 0; top: 0; max-height: 100%; font-size: 11px; color: #000; line-height: 2; padding: 10px; background: rgba(255, 255, 255, 0.5); z-index: 99999; overflow: auto; pointer-events: none;';
+				document.body.appendChild(box)
+			}
+
+			values = [];
+			for (i = 0; i < arguments.length; i++) {
+				values.push(arguments[i]);
+			}
+			box.innerHTML += values.join(', ') +'<br>';
+
+		}
+
+	})();
 
 
 })();
